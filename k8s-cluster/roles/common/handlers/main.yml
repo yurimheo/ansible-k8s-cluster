@@ -1,0 +1,6 @@
+---
+# roles/common/handlers/main.yml
+
+- name: Save iptables rules
+  ansible.builtin.command:
+    cmd: iptables-save > /etc/iptables/rules.v4

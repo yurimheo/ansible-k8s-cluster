@@ -1,0 +1,89 @@
+---
+- name: Setup
+  hosts: localhost
+  vars:
+    ansible_user: vagrant
+  tasks:
+    - name: Set /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ item }}"
+        state: present
+      with_items:
+        - "192.168.105.11 gameArchive-master"
+        - "192.168.105.21 gameArchive-worker1"
+        - "192.168.105.22 gameArchive-worker2"
+        - "192.168.105.23 gameArchive-worker3"
+      become: yes
+
+    - name: Ensure inventory directory exists
+      file:
+        path: "{{ ansible_env.HOME }}/k8s-cluster"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Create inventory file
+      blockinfile:
+        path: "{{ ansible_env.HOME }}/k8s-cluster/inventory"
+        create: yes
+        block: |
+          [master]
+          gameArchive-master ansible_host=192.168.105.11
+
+          [etcd]
+          gameArchive-master ansible_host=192.168.105.11
+
+          [workers]
+          gameArchive-worker1 ansible_host=192.168.105.21
+          gameArchive-worker2 ansible_host=192.168.105.22
+          gameArchive-worker3 ansible_host=192.168.105.23
+
+          [all:vars]
+          ansible_python_interpreter=/usr/bin/python3
+
+    - name: Create ansible.cfg file
+      blockinfile:
+        path: "{{ ansible_env.HOME }}/k8s-cluster/ansible.cfg"
+        create: yes
+        content: |
+          [defaults]
+          inventory = ./inventory
+          remote_user = "{{ ansible_user }}"
+
+          [privilege_escalation]
+          become = true
+          become_method = sudo
+          become_ask_pass = false
+
+    - name: Install sshpass
+      apt:
+        name: sshpass
+        state: present
+      become: yes
+
+    - name: Generate SSH key if not exists
+      command: ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa
+      args:
+        creates: ~/.ssh/id_rsa
+
+    - name: Copy SSH key to nodes
+      shell: |
+        sshpass -p "{{ ansible_user }}" ssh-copy-id -o StrictHostKeyChecking=no {{ item }}
+      with_items:
+        - gameArchive-master
+        - gameArchive-worker1
+        - gameArchive-worker2
+        - gameArchive-worker3
+      args:
+        chdir:  "{{ ansible_env.HOME }}/k8s-cluster"
+
+    - name: Add nodes to known_hosts
+      shell: |
+        ssh-keyscan -H {{ item }} >> ~/.ssh/known_hosts
+      with_items:
+        - 192.168.105.11
+        - 192.168.105.21
+        - 192.168.105.22
+        - 192.168.105.23

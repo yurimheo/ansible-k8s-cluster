@@ -1,0 +1,7 @@
+---
+# roles/worker/handlers/main.yml
+
+- name: Restart kubelet
+  ansible.builtin.systemd:
+    name: kubelet
+    state: restarted

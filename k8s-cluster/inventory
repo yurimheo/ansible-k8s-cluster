@@ -1,0 +1,15 @@
+# BEGIN ANSIBLE MANAGED BLOCK
+[master]
+gameArchive-master ansible_host=192.168.105.11
+
+[etcd]
+gameArchive-master ansible_host=192.168.105.11
+
+[workers]
+gameArchive-worker1 ansible_host=192.168.105.21
+gameArchive-worker2 ansible_host=192.168.105.22
+gameArchive-worker3 ansible_host=192.168.105.23
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
+# END ANSIBLE MANAGED BLOCK

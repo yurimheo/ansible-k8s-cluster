@@ -1,0 +1,67 @@
+---
+# roles/worker/tasks/main.yml
+
+- name: Disable swap
+  ansible.builtin.shell:
+    cmd: swapoff -a
+  failed_when: false
+
+- name: Disable swap in /etc/fstab
+  ansible.builtin.shell:
+    cmd: sed -i '/swap/s/^/#/' /etc/fstab
+
+- name: Reset Kubernetes cluster with kubeadm
+  ansible.builtin.command:
+    cmd: kubeadm reset -f
+
+- name: Flush all iptables rules
+  ansible.builtin.command:
+    cmd: iptables -F
+
+- name: Flush NAT iptables rules
+  ansible.builtin.command:
+    cmd: iptables -t nat -F
+
+- name: Flush mangle iptables rules
+  ansible.builtin.command:
+    cmd: iptables -t mangle -F
+
+- name: Delete all iptables chains
+  ansible.builtin.command:
+    cmd: iptables -X
+
+- name: Open 6443 port
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 6443
+    jump: ACCEPT
+
+- name: Open 8472 port
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: 8472
+    jump: ACCEPT
+
+- name: Open 4789 port
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: 4789
+    jump: ACCEPT
+
+- name: Set node IP for kubelet
+  ansible.builtin.lineinfile:
+    path: /etc/default/kubelet
+    regexp: '^KUBELET_EXTRA_ARGS='
+    line: 'KUBELET_EXTRA_ARGS=--node-ip={{ ansible_host }}'
+  notify:
+    - Restart kubelet
+
+- name: Join worker node to the cluster
+  ansible.builtin.shell:
+    cmd: >-
+      kubeadm join "{{ hostvars['gameArchive-master'].join_ip }}:6443"
+      --token "{{ hostvars['gameArchive-master'].join_token }}"
+      --discovery-token-ca-cert-hash "sha256:{{ hostvars['gameArchive-master'].join_sha256 }}"

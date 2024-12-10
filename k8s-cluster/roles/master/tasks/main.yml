@@ -1,0 +1,129 @@
+---
+# roles/master/tasks/main.yml
+
+- name: Disable swap
+  ansible.builtin.shell:
+    cmd: swapoff -a
+  failed_when: false
+
+- name: Disable swap in /etc/fstab
+  ansible.builtin.shell:
+    cmd: sed -i '/swap/s/^/#/' /etc/fstab
+
+- name: Load Kubernetes network modules
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      br_netfilter
+      overlay
+    mode: '0644'
+
+- name: Apply sysctl settings for Kubernetes
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/k8s.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+    mode: '0644'
+
+- name: Reset Kubernetes cluster with kubeadm
+  ansible.builtin.command:
+    cmd: kubeadm reset -f
+
+- name: Flush all iptables rules
+  ansible.builtin.command:
+    cmd: iptables -F
+
+- name: Flush NAT iptables rules
+  ansible.builtin.command:
+    cmd: iptables -t nat -F
+
+- name: Flush mangle iptables rules
+  ansible.builtin.command:
+    cmd: iptables -t mangle -F
+
+- name: Delete all iptables chains
+  ansible.builtin.command:
+    cmd: iptables -X
+
+- name: Open 6443 port
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 6443
+    jump: ACCEPT
+
+- name: Open 8472 port
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: 8472
+    jump: ACCEPT
+
+- name: Open 4789 port
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: 4789
+    jump: ACCEPT
+
+- name: Reload sysctl configuration
+  ansible.builtin.command:
+    cmd: sysctl --system
+
+- name: Initialize Kubernetes cluster
+  ansible.builtin.shell:
+    cmd: kubeadm init --apiserver-advertise-address=192.168.105.11 --pod-network-cidr=10.244.0.0/16
+  register: init_output
+
+- name: Extract kubeadm join command
+  ansible.builtin.set_fact:
+    join_command: "{{ init_output.stdout | regex_search('kubeadm join .*', multiline=True) | regex_replace('\\s*\\\\\\s*', ' ') }} --discovery-token-ca-cert-hash {{ init_output.stdout | regex_search('sha256:[a-f0-9]{64}', multiline=True) }}"
+
+- name: Extract IP, token, and hash from join command
+  ansible.builtin.set_fact:
+    join_ip: "{{ (join_command.split(' ') | reject('equalto', '') | list)[2].split(':')[0] }}"
+    join_token: "{{ (join_command.split(' ') | reject('equalto', '') | list)[4] }}"
+    join_sha256: "{{ (join_command.split(' ') | reject('equalto', '') | list)[6].split(':')[1] }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Debug extracted variables
+  ansible.builtin.debug:
+    msg:
+      - "Join IP: {{ join_ip }}"
+      - "Join Token: {{ join_token }}"
+      - "Join SHA256: {{ join_sha256 }}"
+
+- name: Create .kube directory directory for vagrant user
+  ansible.builtin.file:
+    path: /home/vagrant/.kube
+    state: directory
+    mode: 0755
+    owner: vagrant
+    group: vagrant
+
+- name: Copy admin.conf to user's kube config
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/vagrant/.kube/config
+    remote_src: yes
+    owner: vagrant
+    group: vagrant
+
+- name: Restart kubelet
+  ansible.builtin.systemd:
+    name: kubelet
+    state: restarted
+
+- name: Download Flannel YAML manifest
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml"
+    dest: "/tmp/kube-flannel.yml"
+
+- name: Apply Flannel network plugin
+  ansible.builtin.shell:
+    cmd: "kubectl apply -f /tmp/kube-flannel.yml"
+  environment:
+    KUBECONFIG: /home/vagrant/.kube/config
