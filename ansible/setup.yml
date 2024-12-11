@@ -14,6 +14,7 @@
         - "192.168.105.21 gameArchive-worker1"
         - "192.168.105.22 gameArchive-worker2"
         - "192.168.105.23 gameArchive-worker3"
+        - "192.168.105.24 gameArchive-worker4"
       become: yes
 
     - name: Ensure inventory directory exists
@@ -39,6 +40,7 @@
           gameArchive-worker1 ansible_host=192.168.105.21
           gameArchive-worker2 ansible_host=192.168.105.22
           gameArchive-worker3 ansible_host=192.168.105.23
+          gameArchive-worker4 ansible_host=192.168.105.24
 
           [all:vars]
           ansible_python_interpreter=/usr/bin/python3
@@ -76,6 +78,7 @@
         - gameArchive-worker1
         - gameArchive-worker2
         - gameArchive-worker3
+        - gameArchive-worker4
       args:
         chdir:  "{{ ansible_env.HOME }}/k8s-cluster"
 
@@ -87,3 +90,4 @@
         - 192.168.105.21
         - 192.168.105.22
         - 192.168.105.23
+        - 192.168.105.24
