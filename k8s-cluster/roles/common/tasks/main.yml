@@ -1,142 +1,184 @@
 ---
-# roles/common/tasks/main.yml
+  # roles/common/tasks/main.yml
+  
+  - name: Update and upgrade apt packages
+    ansible.builtin.apt:
+      upgrade: dist
+      update_cache: yes
+  
+  - name: Open required ports
+    ansible.builtin.iptables:
+      chain: INPUT
+      protocol: "{{ item.protocol }}"
+      destination_port: "{{ item.port }}"
+      jump: ACCEPT
+    with_items:
+      - { protocol: 'tcp', port: 6443 }
+      - { protocol: 'udp', port: 8472 }
+      - { protocol: 'udp', port: 4789 }
+  
+  - name: Install essential packages
+    ansible.builtin.apt:
+      name:
+        - ca-certificates
+        - curl
+        - gnupg
+        - lsb-release
+      state: present
+      update_cache: yes
+  
+  - name: Load Kubernetes network modules persistently
+    ansible.builtin.copy:
+      dest: /etc/modules-load.d/k8s.conf
+      content: |
+        br_netfilter
+        overlay
+      mode: '0644'
+  
+  - name: Load kernel module br_netfilter immediately
+    ansible.builtin.command:
+      cmd: modprobe br_netfilter
+  
+  - name: Load kernel module overlay immediately
+    ansible.builtin.command:
+      cmd: modprobe overlay
+  
+  - name: Apply sysctl settings for Kubernetes persistently
+    ansible.builtin.copy:
+      dest: /etc/sysctl.d/k8s.conf
+      content: |
+        net.bridge.bridge-nf-call-iptables = 1
+        net.bridge.bridge-nf-call-ip6tables = 1
+        net.ipv4.ip_forward = 1
+      mode: '0644'
+  
+  - name: Apply sysctl settings immediately
+    ansible.builtin.command:
+      cmd: sysctl -p /etc/sysctl.d/k8s.conf
+  
+  - name: Add Docker's GPG key
+    ansible.builtin.shell:
+      cmd: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      creates: /usr/share/keyrings/docker-archive-keyring.gpg
+  
+  - name: Configure Docker APT repository
+    ansible.builtin.lineinfile:
+      path: /etc/apt/sources.list.d/docker.list
+      line: |
+        deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+      create: yes
+  
+  - name: Update APT cache
+    ansible.builtin.apt:
+      update_cache: yes
+  
+  - name: Install Docker and containerd
+    ansible.builtin.apt:
+      name:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+      state: present
+  
+  - name: Start Docker and containerd services
+    ansible.builtin.systemd:
+      name: "{{ item }}"
+      enabled: yes
+      state: started
+    loop:
+      - docker
+      - containerd
+  
+  - name: Configure containerd
+    ansible.builtin.shell:
+      cmd: containerd config default | tee /etc/containerd/config.toml
+  
+  - name: Change containerd config
+    ansible.builtin.shell:
+      cmd: sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+  
+  - name: Reload systemd manager configuration
+    ansible.builtin.command:
+      cmd: systemctl daemon-reload
+  
+  - name: Restart containerd service
+    ansible.builtin.systemd:
+      name: containerd
+      state: restarted
+  
+  - name: Add Kubernetes apt-key
+    ansible.builtin.shell:
+      cmd: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  
+  - name: Add Kubernetes' APT repository
+    ansible.builtin.lineinfile:
+      path: /etc/apt/sources.list.d/kubernetes.list
+      line: 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /'
+      create: yes
+  
+  - name: Update APT cache
+    ansible.builtin.apt:
+      update_cache: yes
+  
+  - name: Install Kubernetes components
+    ansible.builtin.apt:
+      name:
+        - apt-transport-https
+        - kubelet
+        - kubeadm
+        - kubectl
+      state: present
+      update_cache: yes
+  
+  - name: Hold Kubernetes packages
+    ansible.builtin.shell:
+      cmd: apt-mark hold kubelet kubeadm kubectl
+  
+  - name: Enable and start kubelet service
+    ansible.builtin.systemd:
+      name: kubelet
+      enabled: yes
+      state: started
 
-- name: Update and upgrade apt packages
-  ansible.builtin.apt:
-    upgrade: dist
-    update_cache: yes
+  - name: Install Docker Compose
+    ansible.builtin.get_url:
+      url: "https://github.com/docker/compose/releases/download/v2.31.0/docker-compose-{{ ansible_system }}-{{ ansible_architecture }}"
+      dest: "/usr/local/bin/docker-compose"
+      mode: '0755'
+  
+  - name: Verify Docker Compose installation
+    ansible.builtin.command:
+      cmd: docker-compose --version
+  
+  - name: Create DOCKER-ISOLATION-STAGE-1 chain if it does not exist
+    ansible.builtin.command:
+      cmd: iptables -N DOCKER-ISOLATION-STAGE-1
+    ignore_errors: yes
 
-- name: Open required ports
-  ansible.builtin.iptables:
-    chain: INPUT
-    protocol: "{{ item.protocol }}"
-    destination_port: "{{ item.port }}"
-    jump: ACCEPT
-  with_items:
-    - { protocol: 'tcp', port: 6443 }
-    - { protocol: 'udp', port: 8472 }
-    - { protocol: 'udp', port: 4789 }
-
-- name: Install essential packages
-  ansible.builtin.apt:
-    name:
-      - ca-certificates
-      - curl
-      - gnupg
-      - lsb-release
-    state: present
-    update_cache: yes
-
-- name: Load Kubernetes network modules persistently
-  ansible.builtin.copy:
-    dest: /etc/modules-load.d/k8s.conf
-    content: |
-      br_netfilter
-      overlay
-    mode: '0644'
-
-- name: Load kernel module br_netfilter immediately
-  ansible.builtin.command:
-    cmd: modprobe br_netfilter
-
-- name: Load kernel module overlay immediately
-  ansible.builtin.command:
-    cmd: modprobe overlay
-
-- name: Apply sysctl settings for Kubernetes persistently
-  ansible.builtin.copy:
-    dest: /etc/sysctl.d/k8s.conf
-    content: |
-      net.bridge.bridge-nf-call-iptables = 1
-      net.bridge.bridge-nf-call-ip6tables = 1
-      net.ipv4.ip_forward = 1
-    mode: '0644'
-
-- name: Apply sysctl settings immediately
-  ansible.builtin.command:
-    cmd: sysctl -p /etc/sysctl.d/k8s.conf
-
-- name: Add Docker's GPG key
-  ansible.builtin.shell:
-    cmd: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    creates: /usr/share/keyrings/docker-archive-keyring.gpg
-
-- name: Configure Docker APT repository
-  ansible.builtin.lineinfile:
-    path: /etc/apt/sources.list.d/docker.list
-    line: |
-      deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
-    create: yes
-
-- name: Update APT cache
-  ansible.builtin.apt:
-    update_cache: yes
-
-- name: Install Docker and containerd
-  ansible.builtin.apt:
-    name:
-      - docker-ce
-      - docker-ce-cli
-      - containerd.io
-    state: present
-
-- name: Start Docker and containerd services
-  ansible.builtin.systemd:
-    name: "{{ item }}"
-    enabled: yes
-    state: started
-  loop:
-    - docker
-    - containerd
-
-- name: Configure containerd
-  ansible.builtin.shell:
-    cmd: containerd config default | tee /etc/containerd/config.toml
-
-- name: Change containerd config
-  ansible.builtin.shell:
-    cmd: sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
-
-- name: Reload systemd manager configuration
-  ansible.builtin.command:
-    cmd: systemctl daemon-reload
-
-- name: Restart containerd service
-  ansible.builtin.systemd:
-    name: containerd
-    state: restarted
-
-- name: Add Kubernetes apt-key
-  ansible.builtin.shell:
-    cmd: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-
-- name: Add Kubernetes' APT repository
-  ansible.builtin.lineinfile:
-    path: /etc/apt/sources.list.d/kubernetes.list
-    line: 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /'
-    create: yes
-
-- name: Update APT cache
-  ansible.builtin.apt:
-    update_cache: yes
-
-- name: Install Kubernetes components
-  ansible.builtin.apt:
-    name:
-      - apt-transport-https
-      - kubelet
-      - kubeadm
-      - kubectl
-    state: present
-    update_cache: yes
-
-- name: Hold Kubernetes packages
-  ansible.builtin.shell:
-    cmd: apt-mark hold kubelet kubeadm kubectl
-
-- name: Enable and start kubelet service
-  ansible.builtin.systemd:
-    name: kubelet
-    enabled: yes
-    state: started
+  - name: Add FORWARD rule for DOCKER-ISOLATION-STAGE-1
+    ansible.builtin.command:
+      cmd: iptables -C FORWARD -j DOCKER-ISOLATION-STAGE-1
+    register: forward_rule_check
+    failed_when: forward_rule_check.rc not in [0, 1]
+  
+  - name: Add FORWARD rule if not present
+    ansible.builtin.command:
+      cmd: iptables -A FORWARD -j DOCKER-ISOLATION-STAGE-1
+    when: forward_rule_check.rc == 1
+  
+  - name: Add RETURN rule to DOCKER-ISOLATION-STAGE-1
+    ansible.builtin.command:
+      cmd: iptables -C DOCKER-ISOLATION-STAGE-1 -j RETURN
+    register: return_rule_check
+    failed_when: return_rule_check.rc not in [0, 1]
+  
+  - name: Add RETURN rule if not present
+    ansible.builtin.command:
+      cmd: iptables -A DOCKER-ISOLATION-STAGE-1 -j RETURN
+    when: return_rule_check.rc == 1  
+  
+  - name: Restart Docker service
+    ansible.builtin.systemd:
+      name: docker
+      state: restarted
