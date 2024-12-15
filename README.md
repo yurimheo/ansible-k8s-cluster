@@ -1,8 +1,6 @@
 ## 설치 방법
 
 ### 1. 기본 초기 세팅 설치
-
-Navigate to the `ansible` folder and execute the setup playbook
 'ansible' 폴더로 이동하여 설정 플레이북 실행
 
 ```bash
@@ -11,8 +9,6 @@ ansible-playbook setup.yml
 ```
 
 ### 2. Deploy the Kubernetes Cluster
-
-Navigate to the `k8s-cluster` folder and run the cluster deployment playbook
 'k8s-cluster' 폴더로 이동하여 클러스터 배포 플레이북 실행
 
 ```bash
