@@ -68,13 +68,20 @@
     destination_port: 4789
     jump: ACCEPT
 
+- name: Open 179 port
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 179
+    jump: ACCEPT
+
 - name: Reload sysctl configuration
   ansible.builtin.command:
     cmd: sysctl --system
 
 - name: Initialize Kubernetes cluster
   ansible.builtin.shell:
-    cmd: kubeadm init --apiserver-advertise-address=192.168.105.11 --pod-network-cidr=10.244.0.0/16
+    cmd: kubeadm init --apiserver-advertise-address=192.168.105.11 --pod-network-cidr=192.168.0.0/16
   register: init_output
 
 - name: Extract kubeadm join command
@@ -117,14 +124,14 @@
     name: kubelet
     state: restarted
 
-- name: Download Flannel YAML manifest
+- name: Download Calico YAML manifest
   ansible.builtin.get_url:
-    url: "https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml"
-    dest: "/tmp/kube-flannel.yml"
+    url: "https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/calico.yaml"
+    dest: "/tmp/calico.yml"
 
-- name: Apply Flannel network plugin
+- name: Apply Calico network plugin
   ansible.builtin.shell:
-    cmd: "kubectl apply -f /tmp/kube-flannel.yml"
+    cmd: "kubectl apply -f /tmp/calico.yml"
   environment:
     KUBECONFIG: /home/vagrant/.kube/config
 

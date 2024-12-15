@@ -1,0 +1,127 @@
+---
+- name: Install MetalLB and Deploy Nginx Ingress Controller
+  hosts: localhost
+  become: yes
+  tasks:
+    # Python 환경 설정
+    - name: Ensure Python3 is installed
+      ansible.builtin.package:
+        name: python3
+        state: present
+
+    - name: Ensure pip3 is installed
+      ansible.builtin.package:
+        name: python3-pip
+        state: present
+
+    - name: Install Kubernetes Python client
+      ansible.builtin.shell:
+        cmd: pip3 install kubernetes
+      register: kubernetes_install
+      changed_when: "'Successfully installed' in kubernetes_install.stdout or 'Requirement already satisfied' in kubernetes_install.stdout"
+
+    # MetalLB 설치
+    - name: Install MetalLB
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: metallb-system
+        kubeconfig: /home/vagrant/.kube/config
+
+    - name: Deploy MetalLB manifests
+      ansible.builtin.shell:
+        cmd: |
+          kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.10/config/manifests/metallb-native.yaml
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: /home/vagrant/.kube/config
+
+    # MetalLB 설정
+    - name: Configure MetalLB IP address pool
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: metallb.io/v1beta1
+          kind: IPAddressPool
+          metadata:
+            namespace: metallb-system
+            name: metallb-ip-pool
+          spec:
+            addresses:
+            - 192.168.105.100-192.168.105.200
+        kubeconfig: /home/vagrant/.kube/config
+
+    - name: Configure MetalLB L2 Advertisement
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: metallb.io/v1beta1
+          kind: L2Advertisement
+          metadata:
+            namespace: metallb-system
+            name: metallb-l2-advertisement
+          spec: {}
+        kubeconfig: /home/vagrant/.kube/config
+
+    # Helm 및 Nginx Ingress 설치
+    - name: Ensure curl is installed
+      ansible.builtin.package:
+        name: curl
+        state: present
+
+    - name: Download Helm installation script
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        dest: /tmp/get-helm-3
+        mode: '0755'
+
+    - name: Install Helm
+      ansible.builtin.shell:
+        cmd: /tmp/get-helm-3
+
+    - name: Verify Helm installation
+      ansible.builtin.command:
+        cmd: helm version
+      register: helm_version
+      failed_when: helm_version.rc != 0
+
+    - name: Add ingress-nginx Helm repository
+      kubernetes.core.helm_repository:
+        name: ingress-nginx
+        repo_url: https://kubernetes.github.io/ingress-nginx
+
+    - name: Install Nginx Ingress Controller
+      kubernetes.core.helm:
+        name: nginx-ingress
+        chart_ref: ingress-nginx/ingress-nginx
+        release_namespace: ingress-nginx
+        create_namespace: true
+        kubeconfig: /home/vagrant/.kube/config
+        values:
+          controller:
+            replicaCount: 2
+            service:
+              type: LoadBalancer
+
+    # Pod 상태 확인
+    - name: Wait for Ingress Controller pods to be ready
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: ingress-nginx
+        label_selectors: app.kubernetes.io/component=controller
+        kubeconfig: /home/vagrant/.kube/config
+      register: pods_status
+
+    - name: Debug Pod Status
+      ansible.builtin.debug:
+        var: pods_status
+
+    - name: Ensure all pods are running
+      fail:
+        msg: "Ingress Controller pods are not ready"
+      when: >
+        pods_status.resources | selectattr('status.phase', 'ne', 'Running') | list | length > 0

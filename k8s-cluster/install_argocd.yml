@@ -1,0 +1,106 @@
+---
+- name: Configure Worker Node 4 and Install ArgoCD
+  hosts: gameArchive-worker4
+  become: yes
+  tasks:
+    # kubectl 설치
+    - name: Install kubectl
+      ansible.builtin.get_url:
+        url: https://dl.k8s.io/release/v1.27.3/bin/linux/amd64/kubectl
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+
+    # kubeconfig 파일 복사
+    - name: Temporarily change permissions for admin.conf on master
+      ansible.builtin.command:
+        cmd: chmod 644 /etc/kubernetes/admin.conf
+      delegate_to: gameArchive-master
+
+    - name: Copy kubeconfig from master to control node
+      ansible.builtin.fetch:
+        src: /etc/kubernetes/admin.conf
+        dest: "{{ playbook_dir }}/admin.conf"
+        flat: yes
+      delegate_to: gameArchive-master
+
+    - name: Restore permissions for admin.conf on master
+      ansible.builtin.command:
+        cmd: chmod 600 /etc/kubernetes/admin.conf
+      delegate_to: gameArchive-master
+
+    - name: Move kubeconfig to correct location on worker node
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/admin.conf"
+        dest: /home/vagrant/.kube/config
+        owner: vagrant
+        group: vagrant
+        mode: '0600'
+
+    - name: Create .kube directory on worker node
+      ansible.builtin.file:
+        path: /home/vagrant/.kube
+        state: directory
+        mode: '0755'
+        owner: vagrant
+        group: vagrant
+
+    # ArgoCD 설치
+    - name: Create ArgoCD Namespace
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: argocd
+        kubeconfig: /home/vagrant/.kube/config
+
+    - name: Install ArgoCD
+      ansible.builtin.shell:
+        cmd: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: /home/vagrant/.kube/config
+
+    # 모든 ArgoCD Pod를 워커 노드 4에 배치하도록 설정
+    - name: Update ArgoCD Deployments with nodeSelector
+      ansible.builtin.shell:
+        cmd: |
+          kubectl get deployment -n argocd -o name | while read deployment; do
+            kubectl patch $deployment -n argocd --type='json' \
+              -p '[{"op": "add", "path": "/spec/template/spec/nodeSelector", "value": {"kubernetes.io/hostname": "gamearchive-worker4"}}]'
+          done
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: /home/vagrant/.kube/config
+
+    - name: Update ArgoCD StatefulSets with nodeSelector
+      ansible.builtin.shell:
+        cmd: |
+          kubectl get statefulset -n argocd -o name | while read statefulset; do
+            kubectl patch $statefulset -n argocd --type='json' \
+              -p '[{"op": "add", "path": "/spec/template/spec/nodeSelector", "value": {"kubernetes.io/hostname": "gamearchive-worker4"}}]'
+          done
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: /home/vagrant/.kube/config
+
+    # Pod 재배포
+    - name: Rollout restart ArgoCD Deployments
+      ansible.builtin.shell:
+        cmd: kubectl rollout restart deployment -n argocd
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: /home/vagrant/.kube/config
+
+    - name: Rollout restart ArgoCD StatefulSets
+      ansible.builtin.shell:
+        cmd: kubectl rollout restart statefulset -n argocd
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: /home/vagrant/.kube/config

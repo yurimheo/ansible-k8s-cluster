@@ -151,6 +151,12 @@
     ansible.builtin.command:
       cmd: docker-compose --version
   
+  - name: Add vagrant user to docker group
+    ansible.builtin.user:
+      name: vagrant
+      groups: docker
+      append: yes
+
   - name: Create DOCKER-ISOLATION-STAGE-1 chain if it does not exist
     ansible.builtin.command:
       cmd: iptables -N DOCKER-ISOLATION-STAGE-1
