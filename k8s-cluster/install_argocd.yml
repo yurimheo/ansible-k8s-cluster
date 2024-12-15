@@ -28,14 +28,6 @@
         cmd: chmod 600 /etc/kubernetes/admin.conf
       delegate_to: gameArchive-master
 
-    - name: Move kubeconfig to correct location on worker node
-      ansible.builtin.copy:
-        src: "{{ playbook_dir }}/admin.conf"
-        dest: /home/vagrant/.kube/config
-        owner: vagrant
-        group: vagrant
-        mode: '0600'
-
     - name: Create .kube directory on worker node
       ansible.builtin.file:
         path: /home/vagrant/.kube
@@ -43,6 +35,14 @@
         mode: '0755'
         owner: vagrant
         group: vagrant
+
+    - name: Move kubeconfig to correct location on worker node
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/admin.conf"
+        dest: /home/vagrant/.kube/config
+        owner: vagrant
+        group: vagrant
+        mode: '0600'
 
     # ArgoCD 설치
     - name: Create ArgoCD Namespace
