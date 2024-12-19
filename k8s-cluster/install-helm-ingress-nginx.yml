@@ -98,7 +98,7 @@
       kubernetes.core.helm:
         name: nginx-ingress
         chart_ref: ingress-nginx/ingress-nginx
-        release_namespace: ingress-nginx
+        release_namespace: default
         create_namespace: true
         kubeconfig: /home/vagrant/.kube/config
         values:
@@ -106,6 +106,10 @@
             replicaCount: 2
             service:
               type: LoadBalancer
+            metrics:
+              enabled: true              # 메트릭 수집 활성화
+              serviceMonitor:
+                enabled: true            # ServiceMonitor 자동 생성
 
     # Pod 상태 확인
     - name: Wait for Ingress Controller pods to be ready
