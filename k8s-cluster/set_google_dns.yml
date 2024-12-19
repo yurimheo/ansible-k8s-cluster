@@ -1,0 +1,17 @@
+---
+- name: Set Google DNS on all inventory hosts
+  hosts: all
+  become: yes
+  tasks:
+    - name: Configure systemd-resolved to use Google DNS
+      ansible.builtin.lineinfile:
+        path: /etc/systemd/resolved.conf
+        regexp: '^#?DNS='
+        line: 'DNS=8.8.8.8 8.8.4.4'
+        state: present
+
+    - name: Restart systemd-resolved service
+      ansible.builtin.systemd:
+        name: systemd-resolved
+        state: restarted
+
