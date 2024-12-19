@@ -6,6 +6,29 @@
       upgrade: dist
       update_cache: yes
   
+  - name: Set iptables to legacy mode
+    ansible.builtin.command:
+     cmd: "{{ item }}"
+    with_items:
+     - "sudo update-alternatives --set iptables /usr/sbin/iptables-legacy"
+     - "sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy"
+     - "sudo update-alternatives --set arptables /usr/sbin/arptables-legacy"
+     - "sudo update-alternatives --set ebtables /usr/sbin/ebtables-legacy"
+
+  - name: Flush iptables rules
+    ansible.builtin.command:
+      cmd: "{{ item }}"
+    with_items:
+      - "sudo iptables -F"
+      - "sudo iptables -t nat -F"
+      - "sudo iptables -X"
+      - "sudo iptables -t nat -X"
+
+  - name: Remove Docker default bridge network
+    ansible.builtin.command:
+      cmd: "sudo ip link delete docker0"
+    ignore_errors: yes
+
   - name: Open required ports
     ansible.builtin.iptables:
       chain: INPUT
@@ -88,7 +111,18 @@
     loop:
       - docker
       - containerd
-  
+
+  - name: Set docker group permissions for Vagrant user
+    ansible.builtin.user:
+      name: vagrant
+      groups: docker
+      append: yes
+
+- name: Change docker.sock permissions
+  ansible.builtin.file:
+    path: /var/run/docker.sock
+    mode: '0666'
+
   - name: Configure containerd
     ansible.builtin.shell:
       cmd: containerd config default | tee /etc/containerd/config.toml
@@ -140,6 +174,20 @@
       name: kubelet
       enabled: yes
       state: started
+  
+  - name: Remove existing Docker network if it exists
+    ansible.builtin.command:
+      cmd: docker network rm game-archive_app-network
+    ignore_errors: yes
+
+  - name: Create Docker network
+    ansible.builtin.command:
+      cmd: docker network create game-archive_app-network
+
+  - name: Restart Docker service
+    ansible.builtin.systemd:
+     name: docker
+      state: restarted
 
   - name: Install Docker Compose
     ansible.builtin.get_url:
