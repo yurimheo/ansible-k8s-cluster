@@ -118,10 +118,10 @@
       groups: docker
       append: yes
 
-- name: Change docker.sock permissions
-  ansible.builtin.file:
-    path: /var/run/docker.sock
-    mode: '0666'
+  - name: Change docker.sock permissions
+    ansible.builtin.file:
+      path: /var/run/docker.sock
+      mode: '0666'
 
   - name: Configure containerd
     ansible.builtin.shell:
@@ -187,7 +187,7 @@
   - name: Restart Docker service
     ansible.builtin.systemd:
      name: docker
-      state: restarted
+     state: restarted
 
   - name: Install Docker Compose
     ansible.builtin.get_url:
