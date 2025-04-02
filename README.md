@@ -1,37 +1,50 @@
-# ⚙️ ansible-k8s-cluster
+<h1 align="center">⚙️ ansible-k8s-cluster</h1>
 
-> Ansible을 사용해 Kubespray 없이 구성한 경량화 Kubernetes 클러스터 자동화 프로젝트입니다.
+<p align="center">
+  Kubespray 없이 Ansible만으로 Kubernetes 클러스터를 구축하는 자동화 프로젝트입니다.<br/>
+  Helm, Ingress, ArgoCD, MetalLB까지 온프레미스 환경을 코드로 완벽 구성합니다.
+</p>
 
-![Ansible](https://img.shields.io/badge/ansible-automation-blue)
-![License](https://img.shields.io/github/license/yurimheo/ansible-k8s-cluster)
-![Last Commit](https://img.shields.io/github/last-commit/yurimheo/ansible-k8s-cluster)
-
----
-
-## 📦 구성 요소
-
-- Kubernetes 클러스터 설치 (Kubeadm 기반)
-- Helm + Ingress Nginx 설치
-- ArgoCD 설치 및 초기 설정
-- MetalLB + 외부 IP 설정
-- Google DNS 및 네트워크 기본 설정
-- SSH 키 자동화, 계정 생성, 네트워크 세팅 등 서버 초기화 작업
+<p align="center">
+  <img src="https://img.shields.io/badge/ansible-automation-blue?style=flat-square"/>
+  <img src="https://img.shields.io/github/license/yurimheo/ansible-k8s-cluster?style=flat-square"/>
+  <img src="https://img.shields.io/github/last-commit/yurimheo/ansible-k8s-cluster?style=flat-square"/>
+</p>
 
 ---
 
-## 🛠️ 사용 기술
+## 🚀 소개
+
+이 프로젝트는 Kubespray와 같은 외부 도구 없이, Ansible만으로 Kubernetes 클러스터를 설치하고  
+운영 도구(Helm, Ingress, ArgoCD, MetalLB)를 함께 자동화하는 인프라 구성 템플릿입니다.
+
+---
+
+## 🧰 주요 구성 요소
+
+- ✅ Kubeadm 기반 Kubernetes 설치
+- ✅ Helm + Ingress Nginx 설치
+- ✅ ArgoCD GitOps 배포 환경 구성
+- ✅ MetalLB 외부 IP LoadBalancer 설정
+- ✅ SSH 키 자동화, DNS 설정, 네트워크 구성
+- ✅ 서버 초기화 및 반복 작업 자동화
+
+---
+
+## 📦 사용 기술 스택
 
 | 분류 | 기술 |
 |------|------|
-| Language | YAML (Ansible Playbook) |
 | Infra | Kubernetes, Helm, ArgoCD, MetalLB |
 | Tooling | Ansible, SSH, Ubuntu Server |
-| 구조 | 역할 기반 디렉토리(`roles/`) + 환경 분리(`inventory/`) |
+| Language | YAML (Ansible Playbook) |
+| 구조 | Role 기반 (`roles/`) + Inventory 구성 |
+
 
 ---
 
 <details>
-<summary>🧾 설치 방법 보기</summary>
+<summary>🛠️ 설치 방법 (클릭해서 열기)</summary>
 
 ```bash
 # 1. 초기 서버 설정
@@ -48,4 +61,3 @@ ansible-playbook -i inventory install-helm-ingress-nginx.yml
 # 4. ArgoCD 설치
 ansible-playbook -i inventory install_argocd.yml
 </details>
-
