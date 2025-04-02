@@ -33,12 +33,16 @@
 
 ## 📦 사용 기술 스택
 
-| 분류 | 기술 |
+| 기술 | 설명 |
 |------|------|
-| Infra | Kubernetes, Helm, ArgoCD, MetalLB |
-| Tooling | Ansible, SSH, Ubuntu Server |
-| Language | YAML (Ansible Playbook) |
-| 구조 | Role 기반 (`roles/`) + Inventory 구성 |
+| ![Ansible](https://img.shields.io/badge/-Ansible-E0503A?logo=ansible&logoColor=white) | 서버 초기 설정, Kubernetes 설치, Helm, ArgoCD 등 자동화 |
+| ![Kubernetes](https://img.shields.io/badge/-Kubernetes-326CE5?logo=kubernetes&logoColor=white) | kubeadm을 통한 클러스터 설치 및 구성 대상 |
+| ![Helm](https://img.shields.io/badge/-Helm-0F1689?logo=helm&logoColor=white) | Ingress Nginx 설치 및 K8s 리소스 배포 자동화 |
+| ![ArgoCD](https://img.shields.io/badge/-ArgoCD-FE7B72?logo=argo&logoColor=white) | GitOps 기반 배포 도구, Ansible로 설치 |
+| ![Nginx](https://img.shields.io/badge/-Nginx-009639?logo=nginx&logoColor=white) | Ingress Controller 및 Reverse Proxy로 구성 |
+| ![Ubuntu](https://img.shields.io/badge/-Ubuntu-E95420?logo=ubuntu&logoColor=white) | 대상 서버 OS, 패키지 설치 및 네트워크 설정 |
+| ![YAML](https://img.shields.io/badge/-YAML-CCCCCC?logo=yaml&logoColor=black) | 모든 Playbook 및 인프라 설정 작성 포맷 |
+| ![SSH](https://img.shields.io/badge/-SSH-000000?logo=openssh&logoColor=white) | 원격 접속 및 키 기반 인증 자동화 |
 
 
 ---
